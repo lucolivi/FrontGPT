@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FrontGPT</title>
+</head>
+    <style>
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            /* font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; */
+        }
+
+        main {
+          height: 100%;
+          background-color: yellow;
+          width: 100%;
+        }
+
+        #html-content {
+          height:100%;
+          width: 70%;
+          float:left;
+          overflow-y:scroll;
+          padding: 10px 10px 10px 10px;
+        }
+
+        #html-render-iframe {
+          border: 0;
+          box-shadow: 0px 0px 7px lightblue;
+          border-radius: 10px;
+          width: 100%; 
+          height: 100%;
+        }
+
+        #messages-container {
+          height:100%;
+          margin-left:70%;
+          overflow-y:scroll;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            border: 0;
+            resize: none;
+            font-size: 16px;
+        }
+
+        textarea:focus {
+        outline: none;
+      }
+
+        #flashing-cursor {
+          animation: cursor-blink 1s steps(2) infinite;
+        }
+
+        @keyframes cursor-blink {
+          0% {
+            opacity: 0;
+          }
+        }
+
+        .content-div {
+            padding: 10px;
+            font-size: 16px;
+            margin-bottom: 5px;
+            margin: 10px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 5px lightblue;
+        }
+
+        .system-content-div {
+          background-color: lightblue;
+        }
+
+
+        .dialog-div {
+            background-color: #aaa;
+            border: 1px #000 solid;
+            height: 50px;
+            color: #000;
+            
+        }
+
+
+
+        nav {
+          background-color: lightgreen;
+          height: 80px;
+          text-align: center;
+          box-shadow: 0px 2px 5px lightgreen;
+        }
+
+        #contents {
+          height: calc(100% - 80px);
+        }
+
+        button {
+          border: 1px solid #aaa
+        }
+
+        h3 {
+          margin: 0;
+        }
+
+
+
+    </style>
+
+    </head>
+      <body>
+        <nav>
+          <h3>FrontGPT</h3><br>
+          <label>OPENAI API Key: </label>
+          <input type="password" id="apikey" />
+          <button onclick="testapikey()">Test</button> |
+          <a id="download-link" href="#">Download HTML</a> | 
+          <a target="_blank" href="https://github.com/lucolivi/FrontGPT">Github</a>
+        
+        </nav>
+
+        <div id="contents">
+          
+          <div id="html-content">
+            <iframe width="100%" id="html-render-iframe"></iframe>
+          </div>
+
+          <div id="messages-container">
+            <div id="messages-place"></div>
+
+            <div class="content-div">
+              <textarea id="prompt-message" name="prompt" placeholder="Create an HTML page with moving random circles"></textarea><br>
+              <button id="send-button" onclick="sendMessage()">Send</button>
+            </div>
+          </div>
+
+        </div>
+      
+      </body>
+    <script src="static/jquery-3.6.4.min.js"></script>
+    <script src="static/openai.js"></script>
+    <script>
+
+      $("#prompt-message").on("keyup", function(e){
+        if(e.key === 'Enter'|| e.keyCode === 13) {
+          $("#send-button").click()
+          return false
+        }
+      })
+
+
+        window.onbeforeunload = function(){
+          return 'Are you sure you want to leave?';
+        };
+
+        var flashingCursor = $('<span id="flashing-cursor">▋</span>')
+
+        function scrollMessagesDown() {
+          var msgElem = document.getElementById("messages-container")
+          msgElem.scrollTo(0, msgElem.scrollHeight);
+        }
+
+        function testapikey() {
+
+          getPromptResponse("ping", 1, 0.7, $("#apikey").val())
+              .then(function(resp) {
+                  alert("All good!")
+              })
+              .catch(function(e) {
+                  console.log(e)
+                  alert("ERROR: " + e.responseText)
+              });
+        }
+
+        function escapeHtml(html){
+          var text = document.createTextNode(html);
+          var p = document.createElement('p');
+          p.appendChild(text);
+          return p.innerHTML;
+        }
+
+        function renderHtml(htmlString) {
+          var iframeElem = document.getElementById("html-render-iframe")
+
+          var htmlDownloadElem = document.getElementById("download-link")
+          htmlDownloadElem.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(htmlString));
+          htmlDownloadElem.setAttribute('download', "frontgpt.html");
+
+          injectHTML(iframeElem, htmlString)
+        }
+
+        var currentHtml = null
+
+        function sendMessage() {
+
+          var promptMessage = $("#prompt-message").val()
+
+          if(promptMessage.trim() == "")
+            return
+
+          $("#send-button").prop("disabled", true)
+          $("#prompt-message").val("")
+          $("#prompt-message").prop("disabled", true)
+
+          var userContentDiv = $(`
+            <div class="content-group-div">
+              <div class="content-div">
+              ${promptMessage}
+              
+              </div>
+            </div>
+          `)
+
+          $("#messages-place").append(userContentDiv)
+
+          var systemContentDiv = $(`<div class="content-div system-content-div"></div>`)
+          systemContentDiv.append(flashingCursor)
+          
+
+          $("#messages-place").append(systemContentDiv)
+
+          scrollMessagesDown()
+
+          getSystemResponse(currentHtml, promptMessage, 1, 0.7, $("#apikey").val())
+            .then(function(data){
+              console.log(data)
+
+              var responseContent = data.choices[0].message.content
+
+              var htmlContentStartInd = responseContent.toLowerCase().indexOf("<!doctype html>")
+              var htmlContentEndInd = responseContent.toLowerCase().lastIndexOf("</html>")
+
+              //If there is html content
+              if(htmlContentStartInd != -1 && htmlContentEndInd != -1) {
+                var htmlContent = responseContent.substring(htmlContentStartInd, htmlContentEndInd+7)
+                renderHtml(htmlContent)
+                currentHtml = htmlContent
+                console.log(htmlContent)
+              } else {
+                var htmlContent = ""
+              }
+
+
+              systemContentDiv.get(0).innerText = ""
+              var i = 0
+              var intervalHandler = setInterval(function() {
+
+                if(i >= responseContent.length) {
+                  clearInterval(intervalHandler)
+                  $("#prompt-message").focus()
+                }
+                else {
+                  systemContentDiv.append(responseContent[i])
+                  i+=1
+
+                  scrollMessagesDown()
+                  
+                }
+
+              }, 20)
+            
+          })
+          .catch(function(e) {
+              console.log(e)
+              alert("ERROR: " + e.responseText)
+          })
+          .always(_ => {
+            $("#send-button").prop("disabled", false)
+            $("#prompt-message").prop("disabled", false)
+          })
+        }
+
+
+      function injectHTML(iframe, html_string) {
+
+          var iframedoc = iframe.document;
+          if (iframe.contentDocument)
+          iframedoc = iframe.contentDocument;
+          else if (iframe.contentWindow)
+          iframedoc = iframe.contentWindow.document;
+
+          if (iframedoc) {
+          // Put the content in the iframe
+          iframedoc.open();
+          iframedoc.writeln(html_string);
+
+          iframe.width  = iframedoc.body.scrollWidth;
+          iframe.height = iframedoc.body.scrollHeight;
+
+
+          iframedoc.close();
+          } else {
+
+          alert('Cannot inject dynamic contents into iframe.');
+          }
+      }
+
+
+    </script>
+  </body>
+</html>
