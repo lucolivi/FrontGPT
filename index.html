@@ -11,7 +11,7 @@
             height: 100%;
             margin: 0;
             padding: 0;
-            /* font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         main {
@@ -48,6 +48,7 @@
             border: 0;
             resize: none;
             font-size: 16px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         textarea:focus {
@@ -133,7 +134,7 @@
             <div id="messages-place"></div>
 
             <div class="content-div">
-              <textarea id="prompt-message" name="prompt" placeholder="Create an HTML page with moving random circles"></textarea><br>
+              <textarea id="prompt-message" name="prompt" placeholder="Type some instruction to create a web page"></textarea><br>
               <button id="send-button" onclick="sendMessage()">Send</button>
             </div>
           </div>
@@ -234,27 +235,33 @@
               var htmlContentStartInd = responseContent.toLowerCase().indexOf("<!doctype html>")
               var htmlContentEndInd = responseContent.toLowerCase().lastIndexOf("</html>")
 
+              var htmlContent = ""
+              var nonHtmlContent = responseContent
+
               //If there is html content
               if(htmlContentStartInd != -1 && htmlContentEndInd != -1) {
-                var htmlContent = responseContent.substring(htmlContentStartInd, htmlContentEndInd+7)
+                htmlContent = responseContent.substring(htmlContentStartInd, htmlContentEndInd+7)
                 renderHtml(htmlContent)
                 currentHtml = htmlContent
-                console.log(htmlContent)
-              } else {
-                var htmlContent = ""
+
+                nonHtmlContent = responseContent.substring(0, htmlContentStartInd)
+                nonHtmlContent += " "
+                nonHtmlContent += responseContent.substring(htmlContentEndInd+7)
               }
 
+              if(nonHtmlContent.trim().length < 3)
+                nonHtmlContent = "Done!"
 
               systemContentDiv.get(0).innerText = ""
               var i = 0
               var intervalHandler = setInterval(function() {
 
-                if(i >= responseContent.length) {
+                if(i >= nonHtmlContent.length) {
                   clearInterval(intervalHandler)
                   $("#prompt-message").focus()
                 }
                 else {
-                  systemContentDiv.append(responseContent[i])
+                  systemContentDiv.append(nonHtmlContent[i])
                   i+=1
 
                   scrollMessagesDown()
