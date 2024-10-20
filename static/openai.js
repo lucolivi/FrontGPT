@@ -44,7 +44,7 @@ function getSystemResponse(prev_response, prompt, n, temperature, apiKey) {
       "Authorization": "Bearer " + apiKey
     },
     data: JSON.stringify({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o",
       messages: messages,
       // max_tokens: 50,
       n: n,
